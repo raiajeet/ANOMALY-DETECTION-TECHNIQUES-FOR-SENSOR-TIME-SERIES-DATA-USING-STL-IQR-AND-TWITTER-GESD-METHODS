@@ -1,0 +1,149 @@
+#paper2
+rm(list = ls())
+terastub3=read.csv("C:\\Users\\AJIT\\Documents\\EDA\\teras-turb-9_20171129-123051.csv",
+                   header=TRUE,stringsAsFactors =FALSE, sep=",") 
+terastub3=subset(terastub3,select=-c(X,
+                  IDF.B.IN.MOT.CTRL.DMP.CTRL.CMD,IDF.A.HYD.CPL.CTRL.CMD))
+data=as.data.frame(terastub3)
+sum(is.na(data))
+data=na.omit(data)
+#data=subset(data,select = c(Date.Time,IDF.A.IN.MOT.CTRL.DMP.CTRL.CMD))
+##########################################################################################
+data$Date.Time <- format(as.Date(data$Date.Time),"%d%b%Y %H:%M:%S")
+data=data[order(as.Date(data$Date.Time,format="%d%b%Y %H:%M:%S")),]
+data$Date.Time=as.Date(data$Date.Time,"%d%b%Y %H:%M:%S")
+data=aggregate(.~Date.Time,data=data, mean)
+str(data)
+##########################################################################################
+library(ggplot2)
+ggplot(data,aes(x=Date.Time, y=TUR.DC.EMER.OIL.PMP.OUTLET.PR,
+        color=TUR.DC.EMER.OIL.PMP.OUTLET.PR))+ geom_line()+theme(legend.position="none")
+library(plotly)
+plot_ly(data,x=~Date.Time,y=~TUR.DC.EMER.OIL.PMP.OUTLET.PR,mode="lines")
+#plot_ly(data,x=~Date.Time,y=~IDF.A.IN.MOT.CTRL.DMP.CTRL.CMD,mode="lines")
+
+##################################EDA#####################################################
+ggplot(data, aes(y=TUR.DC.EMER.OIL.PMP.OUTLET.PR,
+                 fill="green")) + geom_boxplot(outlier.colour = "red")
+
+library(plotly)
+plot_ly(data,y=~TUR.DC.EMER.OIL.PMP.OUTLET.PR,type="box")
+summary(data$TUR.DC.EMER.OIL.PMP.OUTLET.PR)
+
+###############################################################################
+library(tidyverse)
+library(anomalize)
+library(reshape)
+library(magrittr)
+library(ggplot2)
+#ndata=melt(data[,2:8])
+#ndata=cbind(Date.Time=data[,1],ndata)
+data %>%
+  ggplot(aes(Date.Time,TUR.DC.EMER.OIL.PMP.OUTLET.PR)) +
+  geom_point(color = "blue", alpha = 0.25) +
+  facet_wrap(~TUR.DC.EMER.OIL.PMP.OUTLET.PR, scale = "free_y", ncol = 3) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1)) +
+  labs(title = "Sensor Dataset",
+       subtitle = "Data from Turbine")
+
+################################# STL+IQR ###############################################
+library(tibbletime)
+ndata <- as_tbl_time(data, index = Date.Time)
+
+ndata %>% 
+  as_period(period="daily")
+ndata %>%
+  time_decompose(TUR.DC.EMER.OIL.PMP.OUTLET.PR, method = "stl") %>%
+  anomalize(remainder, method = "iqr") %>%
+  time_recompose() %>%
+  plot_anomalies(time_recomposed = TRUE, ncol = 3, alpha_dots = 0.25) +
+  labs(title = "Turbine Anomalies", subtitle = "STL + IQR Methods") 
+#########################################################################################
+ndata %>%
+  # Twitter + GESD
+  time_decompose(TUR.DC.EMER.OIL.PMP.OUTLET.PR, method = "twitter", trend = "2 months") %>%
+  anomalize(remainder, method = "gesd") %>%
+  time_recompose() %>%
+  # Anomaly Visualziation
+  plot_anomalies(time_recomposed = TRUE) +
+  labs(title = "TUR.DC.EMER.OIL.PMP.OUTLET.PR Anomalies", subtitle =
+         "Twitter + GESD Methods")
+
+#########################################################################################
+ndata %>%
+  time_decompose(TUR.DC.EMER.OIL.PMP.OUTLET.PR) %>%
+  anomalize(remainder) %>%
+  plot_anomaly_decomposition() +
+  labs(title = "Decomposition of Anomalized TUR.DC.EMER.OIL.PMP.OUTLET.PR")
+#################################### Anom data points###################################
+ndata %>% 
+  time_decompose(TUR.DC.EMER.OIL.PMP.OUTLET.PR) %>%
+  anomalize(remainder) %>%
+  time_recompose() %>%
+  filter(anomaly == 'Yes') 
+##################################################################################
+qplot(1:length(data[1:50,3]), 
+      data[1:50,3], 
+      main = "Simulated Anomalies",
+      xlab = "Index")
+iqr_outliers <- iqr(data[1:50,3], alpha = 0.05, 
+                    max_anoms = 0.2, verbose = TRUE)$outlier_report
+ggsetup <- function(data) {
+  data %>%
+    ggplot(aes(rank, value, color = outlier)) +
+    geom_point()+
+    geom_line(aes(y = limit_upper), color = "red", linetype = 2) +
+    geom_line(aes(y = limit_lower), color = "red", linetype = 2) +
+    geom_text(aes(label = index), vjust = -1.25) +
+    theme_bw() +
+    scale_color_manual(values = c("No" = "#2c3e50", "Yes" = "#e31a1c")) +
+    expand_limits(y = 13) +
+    theme(legend.position = "bottom")
+}
+
+
+# Visualize
+iqr_outliers %>% 
+  ggsetup() +
+  ggtitle("IQR: Top outlers sorted by rank") 
+
+################################### demo OCSVM ###########################################################
+library(e1071)
+data(iris)
+df <- iris
+
+df <- subset(df ,  Species=='setosa')  #choose only one of the classes
+
+x <- subset(df, select = -Species) #make x variables
+y <- df$Species #make y variable(dependent)
+model <- svm(x, y,type='one-classification') #train an one-classification model 
+
+
+print(model)
+summary(model) #print summary
+
+# test on the whole set
+pred <- predict(model, subset(iris, select=-Species)) #create predictions
+pred
+################################### OCSVM ####################################################
+data1=subset(data,select=c(TUR.DC.EMER.OIL.PMP.OUTLET.PR))
+n=length(data1$TUR.DC.EMER.OIL.PMP.OUTLET.PR)
+m=mean(data1$TUR.DC.EMER.OIL.PMP.OUTLET.PR,na.rm=T)
+s=sd(data1$TUR.DC.EMER.OIL.PMP.OUTLET.PR ,na.rm=T)
+error=qnorm(0.975)*s/sqrt(n)
+left=m-error
+right=m+error
+data1$CI=data1$TUR.DC.EMER.OIL.PMP.OUTLET.PR 
+data1$CI=ifelse((data1$TUR.DC.EMER.OIL.PMP.OUTLET.PR>left)
+                                          &(data1$TUR.DC.EMER.OIL.PMP.OUTLET.PR<right), 1,0)
+table(data1$CI)
+library(e1071)
+df <- subset(data1,CI=='0')
+x <- subset(df, select = -CI) #make x variables
+y <- df$CI #make y variable(dependent)
+model <- svm(x, y,type='one-classification') #train an one-classification model 
+summary(model)
+pred <- predict(model, subset(data1, select=-CI)) #create predictions
+pred
+table(pred)
