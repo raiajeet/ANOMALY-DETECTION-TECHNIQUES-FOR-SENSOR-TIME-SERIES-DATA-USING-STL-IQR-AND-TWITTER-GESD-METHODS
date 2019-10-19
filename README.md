@@ -1,1 +1,2 @@
-### ANOMALY DETECTION TECHNIQUES FOR SENSOR TIME SERIES DATA USING STL+IQR AND TWITTER+GESD METHODS
+## ANOMALY DETECTION TECHNIQUES FOR SENSOR TIME SERIES DATA USING STL+IQR AND TWITTER+GESD METHODS
+#### This project was part of my data science intern at Teras energies LLP Mumbai. The objective was to detect the anomalies in sensor time-series data. The data was generated from one of the hydropower plants in India. In data, anomalies were nothing but a time when the sensor was failed to work. We used two methods namely STL+IQR and TWITTER+GESD.The pdf form of the draft has been attached to this repository.
